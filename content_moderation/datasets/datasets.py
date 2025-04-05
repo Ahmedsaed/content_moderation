@@ -53,8 +53,11 @@ class ModeratorDatasetHF(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-    def __getitem__(self, idx):
-        item = next(iter(self.dataset))
+    def __iter__(self):
+        for item in self.dataset:
+            yield self._encode(item)
+
+    def _encode(self, item):
         text = str(item[self.text_column])
         label = int(item[self.label_column])
 
@@ -67,7 +70,7 @@ class ModeratorDatasetHF(Dataset):
         )
 
         return {
-            "input_ids": encoding["input_ids"].squeeze(),
-            "attention_mask": encoding["attention_mask"].squeeze(),
-            "label": torch.tensor(label),
+            "input_ids": encoding["input_ids"].squeeze(0),
+            "attention_mask": encoding["attention_mask"].squeeze(0),
+            "label": torch.tensor(label, dtype=torch.long),
         }

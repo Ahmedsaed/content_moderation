@@ -50,12 +50,14 @@ def main():
         max_length=config.max_length,
     )
 
-    # for example in spam_ds:
-    #     print(f"Spam: {example['label']}")
-    #     if example["label"] == 1:
-    #         break
+    for example in spam_ds:
+        print(f"Spam: {example['label']}")
+        if example["label"] == 1:
+            print(example)
+            break
 
     for example in toxic_ds:
+        print(f"Toxic: {example['label']}")
         if example["label"] == 1:
             print(example)
             break
