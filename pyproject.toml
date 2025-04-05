@@ -8,8 +8,17 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-
+torch = "^2.6.0"
+pandas = "^2.2.3"
+scikit-learn = "^1.6.1"
+tdqm = "^0.0.1"
+transformers = "^4.50.3"
+datasets = "^3.5.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.poetry.scripts]
+cmtool = 'content_moderation.main:main'
