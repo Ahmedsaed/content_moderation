@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import IterableDataset, Dataset
 
 
 class ModeratorDatasetCSV(Dataset):
@@ -38,7 +38,7 @@ class ModeratorDatasetCSV(Dataset):
         }
 
 
-class ModeratorDatasetHF(Dataset):
+class ModeratorDatasetHF(IterableDataset):
     """Dataset for moderation tasks using HuggingFace datasets."""
 
     def __init__(
