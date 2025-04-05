@@ -23,3 +23,6 @@ class Config:
     # Misc
     output_dir: str = "./output"
     no_cuda: bool = False
+
+
+config = Config()

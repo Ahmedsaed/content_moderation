@@ -1,6 +1,6 @@
 import argparse
 
-from .config import Config
+from .config import config, Config
 
 
 def parse_args() -> Config:
@@ -25,4 +25,18 @@ def parse_args() -> Config:
     parser.add_argument("--no_cuda", action="store_true")
 
     args = parser.parse_args()
-    return Config(**vars(args))
+    return config.update(
+        d_model=args.d_model,
+        num_heads=args.num_heads,
+        num_layers=args.num_layers,
+        d_ff=args.d_ff,
+        dropout=args.dropout,
+        max_length=args.max_length,
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        num_epochs=args.num_epochs,
+        test_size=args.test_size,
+        seed=args.seed,
+        output_dir=args.output_dir,
+        no_cuda=args.no_cuda,
+    )

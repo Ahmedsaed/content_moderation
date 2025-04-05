@@ -63,20 +63,20 @@ def main():
     # run(config)
 
 
-def run(args):
+def run(config):
     # Set device
     device = torch.device(
-        "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
     )
     logger.info(f"Using device: {device}")
 
     # Set random seeds for reproducibility
-    torch.manual_seed(args.seed)
+    torch.manual_seed(config.seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.manual_seed_all(config.seed)
 
     # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
 
     # Load tokenizer
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
@@ -84,13 +84,13 @@ def run(args):
     # Dataset configurations
     datasets = {
         "spam": {
-            "path": args.spam_dataset,
+            "path": config.spam_dataset,
             "text_col": "text",
             "label_col": "label",
             "num_classes": 2,
         },
         "toxicity": {
-            "path": args.toxicity_dataset,
+            "path": config.toxicity_dataset,
             "text_col": "comment_text",
             "label_col": "toxic",
             "num_classes": 2,
@@ -102,7 +102,7 @@ def run(args):
         logger.info(f"Processing {dataset_name} dataset...")
 
         # Create output directory for this dataset
-        dataset_output_dir = os.path.join(args.output_dir, dataset_name)
+        dataset_output_dir = os.path.join(config.output_dir, dataset_name)
         os.makedirs(dataset_output_dir, exist_ok=True)
 
         # Prepare data
@@ -110,8 +110,8 @@ def run(args):
             config["path"],
             config["text_col"],
             config["label_col"],
-            test_size=args.test_size,
-            random_state=args.seed,
+            test_size=config.test_size,
+            random_state=config.seed,
         )
 
         # Create dataloaders
@@ -119,25 +119,25 @@ def run(args):
             data["train"],
             data["test"],
             tokenizer,
-            batch_size=args.batch_size,
-            max_length=args.max_length,
+            batch_size=config.batch_size,
+            max_length=config.max_length,
         )
 
         # Initialize model
         model = ContentModerationTransformer(
             vocab_size=tokenizer.vocab_size,
-            d_model=args.d_model,
-            num_heads=args.num_heads,
-            num_layers=args.num_layers,
-            d_ff=args.d_ff,
-            max_seq_len=args.max_length,
+            d_model=config.d_model,
+            num_heads=config.num_heads,
+            num_layers=config.num_layers,
+            d_ff=config.d_ff,
+            max_seq_len=config.max_length,
             num_classes=config["num_classes"],
-            dropout=args.dropout,
+            dropout=config.dropout,
         ).to(device)
 
         # Define loss function, optimizer, and scheduler
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
+        optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate)
         scheduler = ReduceLROnPlateau(
             optimizer, mode="min", factor=0.1, patience=2, verbose=True
         )
@@ -151,7 +151,7 @@ def run(args):
             criterion=criterion,
             optimizer=optimizer,
             scheduler=scheduler,
-            num_epochs=args.num_epochs,
+            num_epochs=config.num_epochs,
             device=device,
             checkpoint_dir=os.path.join(dataset_output_dir, "checkpoints"),
         )
@@ -176,13 +176,13 @@ def run(args):
         with open(os.path.join(dataset_output_dir, "model_config.json"), "w") as f:
             json.dump(
                 {
-                    "d_model": args.d_model,
-                    "num_heads": args.num_heads,
-                    "num_layers": args.num_layers,
-                    "d_ff": args.d_ff,
-                    "max_length": args.max_length,
+                    "d_model": config.d_model,
+                    "num_heads": config.num_heads,
+                    "num_layers": config.num_layers,
+                    "d_ff": config.d_ff,
+                    "max_length": config.max_length,
                     "num_classes": config["num_classes"],
-                    "dropout": args.dropout,
+                    "dropout": config.dropout,
                     "vocab_size": tokenizer.vocab_size,
                 },
                 f,
