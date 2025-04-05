@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "content-moderation"
+version = "0.1.0"
+description = "Building Modular AI Agents for Ethical and Efficient Community Moderation"
+authors = ["Ahmedsaed <ahmedsaed2652003@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
