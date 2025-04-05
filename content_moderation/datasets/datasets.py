@@ -50,9 +50,6 @@ class ModeratorDatasetHF(Dataset):
         self.label_column = label_column
         self.max_length = max_length
 
-    def __len__(self):
-        return len(self.dataset)
-
     def __iter__(self):
         for item in self.dataset:
             yield self._encode(item)
