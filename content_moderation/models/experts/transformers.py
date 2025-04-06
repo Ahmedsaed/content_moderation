@@ -51,7 +51,7 @@ class MultiHeadAttention(nn.Module):
 
         # Apply mask if provided
         if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
+            scores = scores.masked_fill(mask[:, None, None, :] == 0, -1e9)
 
         # Apply softmax and dropout
         attention_weights = F.softmax(scores, dim=-1)
