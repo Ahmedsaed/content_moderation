@@ -49,6 +49,7 @@ class ModeratorDatasetHF(IterableDataset):
         self.text_column = text_column
         self.label_column = label_column
         self.max_length = max_length
+        self.num_classes = 2
 
     def __iter__(self):
         for item in self.dataset:

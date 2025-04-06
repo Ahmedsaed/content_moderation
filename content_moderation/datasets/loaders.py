@@ -36,6 +36,8 @@ def load_spam_dataset(tokenizer, split="train", streaming=False, max_length=128)
 
     ds = ds.map(label_fn)
 
+    ds.with_format(type="torch")
+
     return ModeratorDatasetHF(ds, tokenizer, "text", "label", max_length=max_length)
 
 
@@ -72,6 +74,8 @@ def load_toxic_dataset(tokenizer, split="train", streaming=False, max_length=128
         return {"comment_text": example["comment_text"], "label": int(any(toxic_flags))}
 
     ds = ds.map(label_fn)
+
+    ds.with_format(type="torch")
 
     return ModeratorDatasetHF(
         ds, tokenizer, "comment_text", "label", max_length=max_length
