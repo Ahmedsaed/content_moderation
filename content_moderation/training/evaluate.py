@@ -6,9 +6,7 @@ from sklearn.metrics import accuracy_score, f1_score, classification_report
 logger = get_logger(__name__)
 
 
-def evaluate_model(
-    model, test_loader, criterion, device="cuda", max_batches_per_epoch=None
-):
+def evaluate_model(model, test_loader, criterion, device="cuda"):
     """Evaluate the model on test data"""
     model.eval()
     test_loss = 0.0
@@ -16,10 +14,7 @@ def evaluate_model(
     all_preds, all_labels = [], []
 
     with torch.no_grad():
-        for batch in tqdm(test_loader, desc="Testing", total=max_batches_per_epoch):
-            if max_batches_per_epoch and batch_count >= max_batches_per_epoch:
-                break
-
+        for batch in tqdm(test_loader, desc="Testing"):
             # Move batch to device
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)

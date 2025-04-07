@@ -9,9 +9,8 @@ from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 
 from content_moderation.models.experts import ContentModerationTransformer
-from content_moderation.datasets.processing import prepare_data, create_dataloaders
 from content_moderation.datasets.loaders import load_spam_dataset, load_toxic_dataset
-from content_moderation.training import train, train_model, evaluate_model
+from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
 
 
@@ -116,12 +115,11 @@ def run(config):
             num_epochs=config.num_epochs,
             device=device,
             checkpoint_dir=os.path.join(task_dir, "checkpoints"),
-            max_batches_per_epoch=256,
         )
 
         # Evaluate the model
         logger.info(f"Evaluating model for {task}...")
-        eval_results = evaluate_model(model, test_loader, criterion, device, 256)
+        eval_results = evaluate_model(model, test_loader, criterion, device)
 
         # Save evaluation results
         with open(os.path.join(task_dir, f"{task}_eval_results.json"), "w") as f:

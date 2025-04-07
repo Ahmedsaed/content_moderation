@@ -17,7 +17,6 @@ def train_model(
     num_epochs=5,
     device="cuda",
     checkpoint_dir="checkpoints",
-    max_batches_per_epoch=None,
 ):
     """Train the transformer model"""
     # Create checkpoint directory if it doesn't exist
@@ -31,12 +30,14 @@ def train_model(
         # Training phase
         model.train()
         train_loss_total = 0.0
-        train_batches = 0
+        train_batch_count = 0
         train_preds, train_labels = [], []
+        train_batch_size = 0
+        train_pbar = tqdm(train_loader, desc="Training", total=train_batch_size)
 
-        for batch in tqdm(train_loader, desc="Training", total=max_batches_per_epoch):
-            if max_batches_per_epoch and train_batches >= max_batches_per_epoch:
-                break
+        for batch in train_pbar:
+            if train_batch_count == 0:
+                train_batch_size += 1
 
             # Move batch to device
             input_ids = batch["input_ids"].to(device)
@@ -54,14 +55,14 @@ def train_model(
 
             # Accumulate loss and predictions
             train_loss_total += loss.item()
-            train_batches += 1
+            train_batch_count += 1
 
             _, preds = torch.max(outputs, 1)
             train_preds.extend(preds.cpu().numpy())
             train_labels.extend(labels.cpu().numpy())
 
         # Calculate training metrics
-        train_loss = train_loss_total / train_batches
+        train_loss = train_loss_total / train_batch_count
         train_acc = accuracy_score(train_labels, train_preds)
         train_f1 = f1_score(train_labels, train_preds, average="weighted")
 
@@ -72,15 +73,15 @@ def train_model(
         # Validation phase
         model.eval()
         val_loss_total = 0.0
-        val_batches = 0
+        val_batch_count = 0
         val_preds, val_labels = [], []
+        val_batch_size = None
+        val_pbar = tqdm(val_loader, desc="Validation", total=val_batch_size)
 
         with torch.no_grad():
-            for batch in tqdm(
-                val_loader, desc="Validation", total=max_batches_per_epoch
-            ):
-                if max_batches_per_epoch and val_batches >= max_batches_per_epoch:
-                    break
+            for batch in val_pbar:
+                if val_batch_count == 0:
+                    val_batch_size += 1
 
                 # Move batch to device
                 input_ids = batch["input_ids"].to(device)
@@ -93,14 +94,14 @@ def train_model(
 
                 # Accumulate loss and predictions
                 val_loss_total += loss.item()
-                val_batches += 1
+                val_batch_count += 1
 
                 _, preds = torch.max(outputs, 1)
                 val_preds.extend(preds.cpu().numpy())
                 val_labels.extend(labels.cpu().numpy())
 
         # Calculate validation metrics
-        val_loss = val_loss_total / val_batches
+        val_loss = val_loss_total / val_batch_count
         val_acc = accuracy_score(val_labels, val_preds)
         val_f1 = f1_score(val_labels, val_preds, average="weighted")
 
