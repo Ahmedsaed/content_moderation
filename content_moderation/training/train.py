@@ -14,7 +14,9 @@ def calculate_metrics(preds, labels):
     return accuracy, f1
 
 
-def run_epoch(model, data_loader, criterion, optimizer, device, is_training=True):
+def run_epoch(
+    model, data_loader, criterion, optimizer=None, device="cuda", is_training=True
+):
     """
     Run a single epoch of training or evaluation.
 
@@ -92,7 +94,7 @@ def train_model(
 
         # Validation phase
         val_loss, val_acc, val_f1, _, _ = run_epoch(
-            model, val_loader, criterion, device=device, is_training=False
+            model, val_loader, criterion, optimizer, device=device, is_training=False
         )
 
         logger.info(
