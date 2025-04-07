@@ -7,6 +7,60 @@ from content_moderation.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def calculate_metrics(preds, labels):
+    """Calculate accuracy and F1 score."""
+    accuracy = accuracy_score(labels, preds)
+    f1 = f1_score(labels, preds, average="weighted")
+    return accuracy, f1
+
+
+def run_epoch(model, data_loader, criterion, optimizer, device, is_training=True):
+    """
+    Run a single epoch of training or evaluation.
+
+    Args:
+        model: The model to train or evaluate.
+        data_loader: DataLoader for the dataset.
+        criterion: Loss function.
+        optimizer: Optimizer for training.
+        device: Device to run the model on (CPU or GPU).
+        is_training: Boolean indicating if this is a training phase.
+
+    Returns:
+        Tuple of average loss, accuracy, and F1 score.
+    """
+    model.train() if is_training else model.eval()
+    total_loss, total_batch_count = 0.0, 0
+    all_preds, all_labels = [], []
+
+    for batch in tqdm(data_loader, desc="Training" if is_training else "Evaluating"):
+        # Move batch to device
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+        labels = batch["label"].to(device)
+
+        # Forward pass
+        outputs = model(input_ids, attention_mask)
+        loss = criterion(outputs, labels)
+
+        if is_training:
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # Calculate metrics
+        total_loss += loss.item()
+        _, preds = torch.max(outputs, 1)
+        all_preds.extend(preds.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+        total_batch_count += 1
+
+    avg_loss = total_loss / total_batch_count
+    accuracy, f1 = calculate_metrics(all_preds, all_labels)
+
+    return avg_loss, accuracy, f1, all_preds, all_labels
+
+
 def train_model(
     model,
     train_loader,
@@ -28,82 +82,18 @@ def train_model(
         logger.info(f"Epoch {epoch+1}/{num_epochs}")
 
         # Training phase
-        model.train()
-        train_loss_total = 0.0
-        train_batch_count = 0
-        train_preds, train_labels = [], []
-        train_batch_size = 0
-        train_pbar = tqdm(train_loader, desc="Training", total=train_batch_size)
-
-        for batch in train_pbar:
-            if train_batch_count == 0:
-                train_batch_size += 1
-
-            # Move batch to device
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["label"].to(device)
-
-            # Forward pass
-            optimizer.zero_grad()
-            outputs = model(input_ids, attention_mask)
-            loss = criterion(outputs, labels)
-
-            # Backward pass and optimize
-            loss.backward()
-            optimizer.step()
-
-            # Accumulate loss and predictions
-            train_loss_total += loss.item()
-            train_batch_count += 1
-
-            _, preds = torch.max(outputs, 1)
-            train_preds.extend(preds.cpu().numpy())
-            train_labels.extend(labels.cpu().numpy())
-
-        # Calculate training metrics
-        train_loss = train_loss_total / train_batch_count
-        train_acc = accuracy_score(train_labels, train_preds)
-        train_f1 = f1_score(train_labels, train_preds, average="weighted")
+        train_loss, train_acc, train_f1, _, _ = run_epoch(
+            model, train_loader, criterion, optimizer, device, is_training=True
+        )
 
         logger.info(
             f"Train Loss: {train_loss:.4f}, Accuracy: {train_acc:.4f}, F1: {train_f1:.4f}"
         )
 
         # Validation phase
-        model.eval()
-        val_loss_total = 0.0
-        val_batch_count = 0
-        val_preds, val_labels = [], []
-        val_batch_size = None
-        val_pbar = tqdm(val_loader, desc="Validation", total=val_batch_size)
-
-        with torch.no_grad():
-            for batch in val_pbar:
-                if val_batch_count == 0:
-                    val_batch_size += 1
-
-                # Move batch to device
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
-                labels = batch["label"].to(device)
-
-                # Forward pass
-                outputs = model(input_ids, attention_mask)
-                loss = criterion(outputs, labels)
-
-                # Accumulate loss and predictions
-                val_loss_total += loss.item()
-                val_batch_count += 1
-
-                _, preds = torch.max(outputs, 1)
-                val_preds.extend(preds.cpu().numpy())
-                val_labels.extend(labels.cpu().numpy())
-
-        # Calculate validation metrics
-        val_loss = val_loss_total / val_batch_count
-        val_acc = accuracy_score(val_labels, val_preds)
-        val_f1 = f1_score(val_labels, val_preds, average="weighted")
+        val_loss, val_acc, val_f1, _, _ = run_epoch(
+            model, val_loader, criterion, device=device, is_training=False
+        )
 
         logger.info(
             f"Val Loss: {val_loss:.4f}, Accuracy: {val_acc:.4f}, F1: {val_f1:.4f}"
