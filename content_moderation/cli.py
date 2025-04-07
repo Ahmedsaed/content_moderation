@@ -1,7 +1,6 @@
 import argparse
 
-from .config import config, Config
-from dataclasses import replace
+from .config import TrainingConfig
 
 
 def init_parser():
@@ -50,7 +49,7 @@ def init_parser():
     return parser
 
 
-def add_common_training_args(parser) -> Config:
+def add_common_training_args(parser) -> TrainingConfig:
     parser.add_argument("--d_model", type=int, default=256)
     parser.add_argument("--num_heads", type=int, default=8)
     parser.add_argument("--num_layers", type=int, default=6)
@@ -66,7 +65,3 @@ def add_common_training_args(parser) -> Config:
 
     parser.add_argument("--output_dir", type=str, default="output")
     parser.add_argument("--no_cuda", action="store_true")
-
-    args = parser.parse_args()
-    replace(config, **vars(args))
-    return config

@@ -1,10 +1,9 @@
-# config.py
-
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 
 @dataclass
-class Config:
+class TrainingConfig:
     # Model
     d_model: int = 256
     num_heads: int = 8
@@ -25,4 +24,24 @@ class Config:
     no_cuda: bool = False
 
 
-config = Config()
+@dataclass
+class ExpertConfig(TrainingConfig):
+    """Configuration for training expert models."""
+
+    task: str = "spam"  # "spam" or "toxic"
+
+
+@dataclass
+class MoEConfig(TrainingConfig):
+    """Configuration for training Mixture of Experts models."""
+
+    tasks: List[str] = field(default_factory=lambda: ["spam", "toxic"])
+
+
+@dataclass
+class EvaluationConfig:
+    """Configuration for evaluating models."""
+
+    model_type: str = "expert"  # "expert" or "moe"
+    model_path: str = ""
+    task: Optional[str] = None  # Only for expert models
