@@ -39,7 +39,7 @@ def main():
                 d_ff=args.d_ff,
                 dropout=args.dropout,
                 seed=args.seed,
-                use_cuda=not args.no_cuda,
+                no_cuda=args.no_cuda,
                 task=args.task,
             )
             train_expert(config)
@@ -56,7 +56,7 @@ def main():
                 d_ff=args.d_ff,
                 dropout=args.dropout,
                 seed=args.seed,
-                use_cuda=not args.no_cuda,
+                no_cuda=args.no_cuda,
                 tasks=args.tasks,
             )
 
@@ -81,7 +81,7 @@ def train_expert(config: ExpertConfig):
 
     # Set device
     device = torch.device(
-        "cuda" if torch.cuda.is_available() and config.use_cuda else "cpu"
+        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
     )
     logger.info(f"Using device: {device}")
 
