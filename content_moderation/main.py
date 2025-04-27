@@ -9,7 +9,7 @@ import json
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 
-from content_moderation.models.experts import ContentModerationTransformer
+from content_moderation.models.experts import ExpertTransformer
 from content_moderation.datasets.loaders import load_spam_dataset, load_toxic_dataset
 from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
@@ -126,7 +126,7 @@ def train_expert(config: ExpertConfig):
         )
 
     # Initialize model
-    model = ContentModerationTransformer(
+    model = ExpertTransformer(
         vocab_size=tokenizer.vocab_size,
         d_model=config.d_model,
         num_heads=config.num_heads,
@@ -156,7 +156,7 @@ def train_expert(config: ExpertConfig):
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
-        num_epochs=config.num_epochs,
+        epochs=config.num_epochs,
         device=device,
         checkpoint_dir=os.path.join(task_dir, "checkpoints"),
     )
@@ -199,6 +199,8 @@ def train_expert(config: ExpertConfig):
         os.path.join(task_dir, f"{config.task}_final_model.pt"),
     )
     logger.info(f"Saved model for {config.task} to {task_dir}")
+
+    return model
 
 
 def train_moe(args):

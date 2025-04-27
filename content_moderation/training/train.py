@@ -85,7 +85,7 @@ def train_model(
     criterion,
     optimizer,
     scheduler,
-    num_epochs=5,
+    epochs=5,
     device="cuda",
     checkpoint_dir="checkpoints",
     train_steps_per_epoch=None,
@@ -112,8 +112,8 @@ def train_model(
 
     best_val_f1 = 0.0
 
-    for epoch in range(num_epochs):
-        logger.info(f"Epoch {epoch+1}/{num_epochs}")
+    for epoch in range(epochs):
+        logger.info(f"Epoch {epoch+1}/{epochs}")
 
         # Training phase
         train_loss, train_acc, train_f1, _, _ = run_epoch(

@@ -1,1 +1,1 @@
-from .transformers import ContentModerationTransformer  # NOQA
+from .transformers import ExpertTransformer  # NOQA

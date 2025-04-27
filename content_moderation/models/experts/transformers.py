@@ -147,7 +147,7 @@ class TransformerEncoder(nn.Module):
         return x
 
 
-class ContentModerationTransformer(nn.Module):
+class ExpertTransformer(nn.Module):
     """Transformer model for content moderation tasks"""
 
     def __init__(
@@ -185,3 +185,40 @@ class ContentModerationTransformer(nn.Module):
         output = self.fc(encoded)
 
         return output
+
+
+def load_pretrained_expert(model_path, config):
+    """
+    Load a pretrained expert transformer model.
+
+    Args:
+        model_path (str): Path to the pretrained model.
+        config (ExpertConfig): Configuration for the model.
+
+    Returns:
+        ExpertTransformer: The loaded model.
+    """
+    # Load the pretrained model
+    model = ExpertTransformer(
+        vocab_size=config.vocab_size,
+        d_model=config.d_model,
+        num_heads=config.num_heads,
+        num_layers=config.num_layers,
+        d_ff=config.d_ff,
+        max_seq_len=config.max_length,
+        num_classes=config.num_classes,
+    )
+
+    # Load the state dict
+    state_dict = torch.load(model_path, map_location="cpu")
+
+    # Update the model's state dict
+    model.load_state_dict(state_dict, strict=False)
+
+    # Move the model to the appropriate device
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
+    )
+    model.to(device)
+
+    return model
