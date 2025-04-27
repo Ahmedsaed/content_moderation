@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import IterableDataset, Dataset
+import random
 
 
 class ModeratorDatasetCSV(Dataset):
@@ -72,3 +73,16 @@ class ModeratorDatasetHF(IterableDataset):
             "attention_mask": encoding["attention_mask"].squeeze(0),
             "label": torch.tensor(label, dtype=torch.long),
         }
+
+
+class CombinedDataset(IterableDataset):
+    """Combined dataset for moderation tasks. Randomly samples from multiple datasets."""
+
+    def __init__(self, datasets):
+        self.datasets = datasets
+
+    def __iter__(self):
+        while True:
+            dataset = random.choice(self.datasets)
+            for item in dataset:
+                yield item
