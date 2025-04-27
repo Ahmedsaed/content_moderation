@@ -147,28 +147,30 @@ class TransformerEncoder(nn.Module):
         return x
 
 
-class ExpertTransformer(nn.Module):
+class TransformerExpert(nn.Module):
     """Transformer model for content moderation tasks"""
 
     def __init__(
         self,
         vocab_size,
-        d_model=256,
-        num_heads=8,
-        num_layers=6,
-        d_ff=1024,
+        embedding_dim=256,
+        attention_heads=8,
+        transformer_blocks=6,
+        ff_dim=1024,
         max_seq_len=128,
         num_classes=2,
         dropout=0.1,
     ):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.positional_encoding = PositionalEncoding(d_model, max_seq_len, dropout)
-        self.transformer_encoder = TransformerEncoder(
-            num_layers, d_model, num_heads, d_ff, dropout
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.positional_encoding = PositionalEncoding(
+            embedding_dim, max_seq_len, dropout
         )
-        self.fc = nn.Linear(d_model, num_classes)
-        self.d_model = d_model
+        self.transformer_encoder = TransformerEncoder(
+            transformer_blocks, embedding_dim, attention_heads, ff_dim, dropout
+        )
+        self.fc = nn.Linear(embedding_dim, num_classes)
+        self.d_model = embedding_dim
 
     def forward(self, x, mask=None):
         # Embedding and positional encoding
@@ -199,12 +201,12 @@ def load_pretrained_expert(model_path, config):
         ExpertTransformer: The loaded model.
     """
     # Load the pretrained model
-    model = ExpertTransformer(
+    model = TransformerExpert(
         vocab_size=config.vocab_size,
-        d_model=config.d_model,
-        num_heads=config.num_heads,
-        num_layers=config.num_layers,
-        d_ff=config.d_ff,
+        embedding_dim=config.d_model,
+        attention_heads=config.num_heads,
+        transformer_blocks=config.num_layers,
+        ff_dim=config.d_ff,
         max_seq_len=config.max_length,
         num_classes=config.num_classes,
     )

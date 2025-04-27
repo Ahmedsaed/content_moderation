@@ -1,4 +1,4 @@
-from content_moderation.config import ExpertConfig, MoEConfig, EvaluationConfig
+from content_moderation.config import ExpertConfig, MoEConfig
 from .cli import init_parser
 import torch
 import torch.nn as nn
@@ -9,7 +9,7 @@ import json
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 
-from content_moderation.models.experts import ExpertTransformer
+from content_moderation.models.experts import TransformerExpert
 from content_moderation.datasets.loaders import load_spam_dataset, load_toxic_dataset
 from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
@@ -32,11 +32,11 @@ def main():
                 batch_size=args.batch_size,
                 learning_rate=args.learning_rate,
                 num_epochs=args.num_epochs,
-                max_length=args.max_length,
-                d_model=args.d_model,
-                num_heads=args.num_heads,
-                num_layers=args.num_layers,
-                d_ff=args.d_ff,
+                max_seq_length=args.max_length,
+                embedding_dim=args.d_model,
+                attention_heads=args.num_heads,
+                transformer_blocks=args.num_layers,
+                ff_dim=args.d_ff,
                 dropout=args.dropout,
                 seed=args.seed,
                 no_cuda=args.no_cuda,
@@ -49,11 +49,11 @@ def main():
                 batch_size=args.batch_size,
                 learning_rate=args.learning_rate,
                 num_epochs=args.num_epochs,
-                max_length=args.max_length,
-                d_model=args.d_model,
-                num_heads=args.num_heads,
-                num_layers=args.num_layers,
-                d_ff=args.d_ff,
+                max_seq_length=args.max_length,
+                embedding_dim=args.d_model,
+                attention_heads=args.num_heads,
+                transformer_blocks=args.num_layers,
+                ff_dim=args.d_ff,
                 dropout=args.dropout,
                 seed=args.seed,
                 no_cuda=args.no_cuda,
@@ -64,11 +64,6 @@ def main():
         else:
             parser.error("Please specify a model type (expert or moe)")
     elif args.command == "evaluate":
-        config = EvaluationConfig(
-            model_type=args.model_type,
-            model_path=args.model_path,
-            task=args.task,
-        )
         # Placeholder for future evaluate command implementation
         logger.info("Evaluate command not yet implemented")
     else:
@@ -97,43 +92,45 @@ def train_expert(config: ExpertConfig):
     # Load tokenizer
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
+    config.vocab_size = tokenizer.vocab_size
+
     # Load datasets based on task
     if config.task == "spam":
         train_ds = load_spam_dataset(
             tokenizer,
             split="train",
             streaming=True,
-            max_length=config.max_length,
+            max_length=config.max_seq_length,
         )
         test_ds = load_spam_dataset(
             tokenizer,
             split="test",
             streaming=True,
-            max_length=config.max_length,
+            max_length=config.max_seq_length,
         )
     elif config.task == "toxic":
         train_ds = load_toxic_dataset(
             tokenizer,
             split="train",
             streaming=True,
-            max_length=config.max_length,
+            max_length=config.max_seq_length,
         )
         test_ds = load_toxic_dataset(
             tokenizer,
             split="test",
             streaming=True,
-            max_length=config.max_length,
+            max_length=config.max_seq_length,
         )
 
     # Initialize model
-    model = ExpertTransformer(
-        vocab_size=tokenizer.vocab_size,
-        d_model=config.d_model,
-        num_heads=config.num_heads,
-        num_layers=config.num_layers,
-        d_ff=config.d_ff,
-        max_seq_len=config.max_length,
-        num_classes=train_ds.num_classes,
+    model = TransformerExpert(
+        vocab_size=config.vocab_size,
+        embedding_dim=config.embedding_dim,
+        attention_heads=config.attention_heads,
+        transformer_blocks=config.transformer_blocks,
+        ff_dim=config.ff_dim,
+        max_seq_len=config.max_seq_length,
+        num_classes=config.num_classes,
         dropout=config.dropout,
     ).to(device)
 
@@ -180,15 +177,7 @@ def train_expert(config: ExpertConfig):
     # Save model configuration
     with open(os.path.join(task_dir, "model_config.json"), "w") as f:
         json.dump(
-            {
-                "d_model": config.d_model,
-                "num_heads": config.num_heads,
-                "num_layers": config.num_layers,
-                "d_ff": config.d_ff,
-                "max_length": config.max_length,
-                "dropout": config.dropout,
-                "vocab_size": tokenizer.vocab_size,
-            },
+            vars(config),
             f,
             indent=4,
         )

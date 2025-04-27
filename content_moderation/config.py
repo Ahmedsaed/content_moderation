@@ -1,17 +1,20 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
+
+
+@dataclass
+class TransformersConfig:
+    """Configuration for the Transformer model."""
+
+    embedding_dim: int = 256
+    attention_heads: int = 8
+    transformer_blocks: int = 6
+    ff_dim: int = 1024
+    dropout: float = 0.1
 
 
 @dataclass
 class TrainingConfig:
-    # Model
-    d_model: int = 256
-    num_heads: int = 8
-    num_layers: int = 6
-    d_ff: int = 1024
-    dropout: float = 0.1
-    max_length: int = 128
-
     # Training
     batch_size: int = 32
     learning_rate: float = 5e-5
@@ -25,23 +28,27 @@ class TrainingConfig:
 
 
 @dataclass
-class ExpertConfig(TrainingConfig):
+class TokenizerConfig:
+    """Configuration for the tokenizer."""
+
+    vocab_size: int = 30522
+    max_seq_length: int = 128
+
+
+@dataclass
+class ExpertConfig(TrainingConfig, TransformersConfig, TokenizerConfig):
     """Configuration for training expert models."""
 
     task: str = "spam"  # "spam" or "toxic"
+    num_classes: int = 2  # Number of classes for the task
 
 
 @dataclass
-class MoEConfig(TrainingConfig):
+class MoEConfig(TrainingConfig, TokenizerConfig):
     """Configuration for training Mixture of Experts models."""
 
     tasks: List[str] = field(default_factory=lambda: ["spam", "toxic"])
-
-
-@dataclass
-class EvaluationConfig:
-    """Configuration for evaluating models."""
-
-    model_type: str = "expert"  # "expert" or "moe"
-    model_path: str = ""
-    task: Optional[str] = None  # Only for expert models
+    num_classes: int = 2  # Number of classes for the task
+    top_k: int = 2  # Number of experts to use for each task
+    embedding_dim: int = 256
+    freeze_experts: bool = True  # Whether to freeze the experts during training

@@ -1,1 +1,1 @@
-from .transformers import ExpertTransformer  # NOQA
+from .transformers import TransformerExpert  # NOQA
