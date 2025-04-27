@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -17,6 +17,8 @@ class TransformersConfig:
 class TrainingConfig:
     # Training
     batch_size: int = 32
+    train_steps: int = 64
+    eval_steps: int = 32
     learning_rate: float = 5e-5
     num_epochs: int = 5
     test_size: float = 0.2
@@ -41,6 +43,8 @@ class ExpertConfig(TrainingConfig, TransformersConfig, TokenizerConfig):
 
     task: str = "spam"  # "spam" or "toxic"
     num_classes: int = 2  # Number of classes for the task
+
+    experts_path: Optional[List[str]] = None  # Paths to pretrained expert models
 
 
 @dataclass

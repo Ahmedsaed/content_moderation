@@ -1,1 +1,1 @@
-from .datasets import ModeratorDatasetCSV, ModeratorDatasetHF  # noqa
+from .datasets import ModeratorDatasetCSV, ModeratorDatasetHF, CombinedDataset  # noqa

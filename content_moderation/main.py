@@ -1,5 +1,5 @@
+from typing import List
 from content_moderation.config import ExpertConfig, MoEConfig
-from .cli import init_parser
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,65 +9,14 @@ import json
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 
-from content_moderation.models.experts import TransformerExpert
+from content_moderation.models import TransformerExpert, MixtureOfExperts
 from content_moderation.datasets.loaders import load_spam_dataset, load_toxic_dataset
+from content_moderation.datasets import CombinedDataset
 from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
-
-
-def main():
-    """Entry point for the CLI tool with subcommand support."""
-    parser = init_parser()
-
-    args = parser.parse_args()
-
-    # Route to appropriate function based on command
-    if args.command == "train":
-        if args.model_type == "expert":
-            config = ExpertConfig(
-                output_dir=args.output_dir,
-                batch_size=args.batch_size,
-                learning_rate=args.learning_rate,
-                num_epochs=args.num_epochs,
-                max_seq_length=args.max_length,
-                embedding_dim=args.d_model,
-                attention_heads=args.num_heads,
-                transformer_blocks=args.num_layers,
-                ff_dim=args.d_ff,
-                dropout=args.dropout,
-                seed=args.seed,
-                no_cuda=args.no_cuda,
-                task=args.task,
-            )
-            train_expert(config)
-        elif args.model_type == "moe":
-            config = MoEConfig(
-                output_dir=args.output_dir,
-                batch_size=args.batch_size,
-                learning_rate=args.learning_rate,
-                num_epochs=args.num_epochs,
-                max_seq_length=args.max_length,
-                embedding_dim=args.d_model,
-                attention_heads=args.num_heads,
-                transformer_blocks=args.num_layers,
-                ff_dim=args.d_ff,
-                dropout=args.dropout,
-                seed=args.seed,
-                no_cuda=args.no_cuda,
-                tasks=args.tasks,
-            )
-
-            train_moe(config)
-        else:
-            parser.error("Please specify a model type (expert or moe)")
-    elif args.command == "evaluate":
-        # Placeholder for future evaluate command implementation
-        logger.info("Evaluate command not yet implemented")
-    else:
-        parser.print_help()
 
 
 def train_expert(config: ExpertConfig):
@@ -192,20 +141,122 @@ def train_expert(config: ExpertConfig):
     return model
 
 
-def train_moe(args):
+def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
     """Train a Mixture of Experts model."""
     logger.info("Training Mixture of Experts model")
-    logger.info(f"Tasks included: {', '.join(args.tasks)}")
+    logger.info(f"Tasks included: {', '.join(config.tasks)}")
 
-    # This is a placeholder for future implementation
-    logger.info("MoE training not yet implemented")
+    # Set device
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
+    )
 
-    # Future implementation would include:
-    # 1. Loading datasets for all specified tasks
-    # 2. Creating a MoE model architecture
-    # 3. Training the MoE model
-    # 4. Evaluating and saving the model
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    config.vocab_size = tokenizer.vocab_size
 
+    # Load datasets
+    spam_train_ds = load_spam_dataset(
+        tokenizer,
+        split="train",
+        streaming=True,
+        max_length=config.max_seq_length,
+    )
+    spam_test_ds = load_spam_dataset(
+        tokenizer,
+        split="test",
+        streaming=True,
+        max_length=config.max_seq_length,
+    )
+    toxic_train_ds = load_toxic_dataset(
+        tokenizer,
+        split="train",
+        streaming=True,
+        max_length=config.max_seq_length,
+    )
+    toxic_test_ds = load_toxic_dataset(
+        tokenizer,
+        split="test",
+        streaming=True,
+        max_length=config.max_seq_length,
+    )
 
-if __name__ == "__main__":
-    main()
+    # Combine datasets
+    combined_train_datasets = CombinedDataset([spam_train_ds, toxic_train_ds])
+    combined_test_datasets = CombinedDataset([spam_test_ds, toxic_test_ds])
+
+    train_loader = DataLoader(combined_train_datasets, batch_size=256)
+    test_loader = DataLoader(combined_test_datasets, batch_size=256)
+
+    # Create output directory
+    os.makedirs(config.output_dir, exist_ok=True)
+
+    # Initialize Mixture of Experts model
+    moe_model = MixtureOfExperts(
+        experts=experts,
+        input_dim=config.max_seq_length,
+        num_classes=config.num_classes,
+        top_k=config.top_k,
+        vocab_size=config.vocab_size,
+        embedding_dim=config.embedding_dim,
+        freeze_experts=config.freeze_experts,
+    )
+    moe_model.to(device)
+
+    # Define loss function, optimizer, and scheduler
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(moe_model.parameters(), lr=config.learning_rate)
+    scheduler = ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.1, patience=2, verbose=True
+    )
+
+    # Train the Mixture of Experts model
+    logger.info("Training Mixture of Experts model...")
+    moe_model = train_model(
+        model=moe_model.to(device),
+        train_loader=train_loader,
+        val_loader=test_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        epochs=config.num_epochs,
+        device=device,
+        train_steps_per_epoch=config.train_steps,
+        val_steps_per_epoch=config.eval_steps,
+        checkpoint_dir=os.path.join(
+            config.output_dir, config.tasks.join("_"), "checkpoints"
+        ),
+    )
+
+    # Evaluate the Mixture of Experts model
+    logger.info("Evaluating Mixture of Experts model...")
+    eval_results = evaluate_model(moe_model, test_loader, criterion, device)
+    logger.info(f"Evaluation results: {eval_results}")
+
+    # Save evaluation results
+    with open(os.path.join(config.output_dir, "moe_eval_results.json"), "w") as f:
+        json.dump(
+            {
+                "accuracy": eval_results["accuracy"],
+                "f1": eval_results["f1"],
+                "loss": eval_results["loss"],
+            },
+            f,
+            indent=4,
+        )
+
+    # Save model configuration
+    with open(os.path.join(config.output_dir, "moe_model_config.json"), "w") as f:
+        json.dump(
+            vars(config),
+            f,
+            indent=4,
+        )
+
+    # Save final model
+    torch.save(
+        moe_model.state_dict(),
+        os.path.join(config.output_dir, "moe_final_model.pt"),
+    )
+    logger.info(f"Saved Mixture of Experts model to {config.output_dir}")
+
+    return moe_model
