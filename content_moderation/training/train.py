@@ -15,7 +15,13 @@ def calculate_metrics(preds, labels):
 
 
 def run_epoch(
-    model, data_loader, criterion, optimizer=None, device="cuda", is_training=True
+    model,
+    data_loader,
+    criterion,
+    optimizer=None,
+    device="cuda",
+    is_training=True,
+    steps_per_epoch=None,
 ):
     """
     Run a single epoch of training or evaluation.
@@ -27,6 +33,8 @@ def run_epoch(
         optimizer: Optimizer for training.
         device: Device to run the model on (CPU or GPU).
         is_training: Boolean indicating if this is a training phase.
+        steps_per_epoch: Maximum number of batches to process in this epoch.
+                         If None, the entire dataset will be processed.
 
     Returns:
         Tuple of average loss, accuracy, and F1 score.
@@ -35,7 +43,11 @@ def run_epoch(
     total_loss, total_batch_count = 0.0, 0
     all_preds, all_labels = [], []
 
-    for batch in tqdm(data_loader, desc="Training" if is_training else "Evaluating"):
+    for batch in tqdm(
+        data_loader,
+        desc="Training" if is_training else "Evaluating",
+        total=steps_per_epoch,
+    ):
         # Move batch to device
         input_ids = batch["input_ids"].to(device)
         attention_mask = batch["attention_mask"].to(device)
@@ -57,6 +69,9 @@ def run_epoch(
         all_labels.extend(labels.cpu().numpy())
         total_batch_count += 1
 
+        if steps_per_epoch is not None and total_batch_count >= steps_per_epoch:
+            break
+
     avg_loss = total_loss / total_batch_count
     accuracy, f1 = calculate_metrics(all_preds, all_labels)
 
@@ -73,8 +88,25 @@ def train_model(
     num_epochs=5,
     device="cuda",
     checkpoint_dir="checkpoints",
+    train_steps_per_epoch=None,
+    val_steps_per_epoch=None,
 ):
-    """Train the transformer model"""
+    """
+    Train the transformer model
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for training data.
+        val_loader: DataLoader for validation data.
+        criterion: Loss function.
+        optimizer: Optimizer for training.
+        scheduler: Learning rate scheduler.
+        num_epochs: Number of training epochs.
+        device: Device to run on.
+        checkpoint_dir: Directory to save checkpoints.
+        train_steps_per_epoch: Maximum number of training batches per epoch.
+        val_steps_per_epoch: Maximum number of validation batches per epoch.
+    """
     # Create checkpoint directory if it doesn't exist
     os.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -85,7 +117,13 @@ def train_model(
 
         # Training phase
         train_loss, train_acc, train_f1, _, _ = run_epoch(
-            model, train_loader, criterion, optimizer, device, is_training=True
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            is_training=True,
+            steps_per_epoch=train_steps_per_epoch,
         )
 
         logger.info(
@@ -94,7 +132,13 @@ def train_model(
 
         # Validation phase
         val_loss, val_acc, val_f1, _, _ = run_epoch(
-            model, val_loader, criterion, optimizer, device=device, is_training=False
+            model,
+            val_loader,
+            criterion,
+            optimizer,
+            device=device,
+            is_training=False,
+            steps_per_epoch=val_steps_per_epoch,
         )
 
         logger.info(
