@@ -151,7 +151,7 @@ def load_measure_hate_dataset(
         ModeratorDatasetHF: Dataset ready for PyTorch.
     """
     dataset_name = "ucberkeley-dlab/measuring-hate-speech"
-    logger.info(f"Loading {dataset_name} (streaming={streaming}), split={split}")
+    logger.info(f"Loading {split} split of the Measuring Hate Speech dataset...")
 
     if streaming:
         # Stream the entire "train" split, then slice.

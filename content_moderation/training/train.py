@@ -69,7 +69,7 @@ def run_epoch(
         all_labels.extend(labels.cpu().numpy())
         total_batch_count += 1
 
-        if steps_per_epoch is not None and total_batch_count >= steps_per_epoch:
+        if steps_per_epoch is not None and total_batch_count > steps_per_epoch:
             break
 
     avg_loss = total_loss / total_batch_count
