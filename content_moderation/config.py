@@ -26,6 +26,7 @@ class TrainingConfig:
     # Misc
     output_dir: str = "./output"
     no_cuda: bool = False
+    streaming: bool = False
 
 
 @dataclass

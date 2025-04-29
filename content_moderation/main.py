@@ -10,7 +10,7 @@ from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 
 from content_moderation.models import TransformerExpert, MixtureOfExperts
-from content_moderation.datasets.loaders import load_spam_dataset, load_toxic_dataset
+from content_moderation.datasets.loaders import task_loaders
 from content_moderation.datasets import CombinedDataset
 from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
@@ -44,31 +44,22 @@ def train_expert(config: ExpertConfig):
     config.vocab_size = tokenizer.vocab_size
 
     # Load datasets based on task
-    if config.task == "spam":
-        train_ds = load_spam_dataset(
+    if config.task in task_loaders.keys():
+        train_ds = task_loaders[config.task](
             tokenizer,
             split="train",
-            streaming=True,
+            streaming=config.streaming,
             max_length=config.max_seq_length,
         )
-        test_ds = load_spam_dataset(
+        test_ds = task_loaders[config.task](
             tokenizer,
             split="test",
-            streaming=True,
+            streaming=config.streaming,
             max_length=config.max_seq_length,
         )
-    elif config.task == "toxic":
-        train_ds = load_toxic_dataset(
-            tokenizer,
-            split="train",
-            streaming=True,
-            max_length=config.max_seq_length,
-        )
-        test_ds = load_toxic_dataset(
-            tokenizer,
-            split="test",
-            streaming=True,
-            max_length=config.max_seq_length,
+    else:
+        raise ValueError(
+            f"Task {config.task} not supported. Supported tasks: {list(task_loaders.keys())}"
         )
 
     # Initialize model
@@ -105,6 +96,8 @@ def train_expert(config: ExpertConfig):
         epochs=config.num_epochs,
         device=device,
         checkpoint_dir=os.path.join(task_dir, "checkpoints"),
+        train_steps_per_epoch=config.train_steps,
+        val_steps_per_epoch=config.eval_steps,
     )
 
     # Evaluate the model
@@ -161,35 +154,34 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     config.vocab_size = tokenizer.vocab_size
 
-    # Load datasets
-    spam_train_ds = load_spam_dataset(
-        tokenizer,
-        split="train",
-        streaming=True,
-        max_length=config.max_seq_length,
-    )
-    spam_test_ds = load_spam_dataset(
-        tokenizer,
-        split="test",
-        streaming=True,
-        max_length=config.max_seq_length,
-    )
-    toxic_train_ds = load_toxic_dataset(
-        tokenizer,
-        split="train",
-        streaming=True,
-        max_length=config.max_seq_length,
-    )
-    toxic_test_ds = load_toxic_dataset(
-        tokenizer,
-        split="test",
-        streaming=True,
-        max_length=config.max_seq_length,
-    )
+    train_datasets = []
+    test_datasets = []
+
+    for task in config.tasks:
+        if task in task_loaders.keys():
+            train_ds = task_loaders[task](
+                tokenizer,
+                split="train",
+                streaming=config.streaming,
+                max_length=config.max_seq_length,
+            )
+            test_ds = task_loaders[task](
+                tokenizer,
+                split="test",
+                streaming=config.streaming,
+                max_length=config.max_seq_length,
+            )
+        else:
+            raise ValueError(
+                f"Task {task} not supported. Supported tasks: {list(task_loaders.keys())}"
+            )
+
+        train_datasets.append(train_ds)
+        test_datasets.append(test_ds)
 
     # Combine datasets
-    combined_train_datasets = CombinedDataset([spam_train_ds, toxic_train_ds])
-    combined_test_datasets = CombinedDataset([spam_test_ds, toxic_test_ds])
+    combined_train_datasets = CombinedDataset(train_datasets)
+    combined_test_datasets = CombinedDataset(test_datasets)
 
     train_loader = DataLoader(combined_train_datasets, batch_size=256)
     test_loader = DataLoader(combined_test_datasets, batch_size=256)
