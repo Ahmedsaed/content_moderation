@@ -5,12 +5,17 @@ from sklearn.metrics import classification_report
 logger = get_logger(__name__)
 
 
-def evaluate_model(model, test_loader, criterion, device="cuda"):
+def evaluate_model(model, test_loader, criterion, steps_per_epoch=None, device="cuda"):
     """Evaluate the model on test data"""
     logger.info("Evaluating on test set...")
 
     test_loss, test_acc, test_f1, all_preds, all_labels = run_epoch(
-        model, test_loader, criterion, device=device, is_training=False
+        model,
+        test_loader,
+        criterion,
+        device=device,
+        is_training=False,
+        steps_per_epoch=steps_per_epoch,
     )
 
     logger.info(

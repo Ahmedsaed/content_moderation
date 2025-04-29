@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from content_moderation.config import ExpertConfig
 from content_moderation.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -189,7 +190,7 @@ class TransformerExpert(nn.Module):
         return output
 
 
-def load_pretrained_expert(model_path, config):
+def load_pretrained_expert(model_path: str, config: ExpertConfig, device) -> nn.Module:
     """
     Load a pretrained expert transformer model.
 
@@ -203,24 +204,20 @@ def load_pretrained_expert(model_path, config):
     # Load the pretrained model
     model = TransformerExpert(
         vocab_size=config.vocab_size,
-        embedding_dim=config.d_model,
-        attention_heads=config.num_heads,
-        transformer_blocks=config.num_layers,
-        ff_dim=config.d_ff,
-        max_seq_len=config.max_length,
+        embedding_dim=config.embedding_dim,
+        attention_heads=config.attention_heads,
+        transformer_blocks=config.transformer_blocks,
+        ff_dim=config.ff_dim,
+        max_seq_len=config.max_seq_length,
         num_classes=config.num_classes,
     )
 
     # Load the state dict
-    state_dict = torch.load(model_path, map_location="cpu")
+    state_dict = torch.load(model_path, map_location=device)
 
     # Update the model's state dict
     model.load_state_dict(state_dict, strict=False)
 
-    # Move the model to the appropriate device
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
-    )
     model.to(device)
 
     return model

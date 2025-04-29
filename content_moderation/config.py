@@ -21,7 +21,6 @@ class TrainingConfig:
     eval_steps: int = 32
     learning_rate: float = 5e-5
     num_epochs: int = 5
-    test_size: float = 0.2
     seed: int = 42
 
     # Misc

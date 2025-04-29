@@ -151,6 +151,11 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
         "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
     )
 
+    # Set random seeds for reproducibility
+    torch.manual_seed(config.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(config.seed)
+
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     config.vocab_size = tokenizer.vocab_size
 
@@ -223,13 +228,15 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
         train_steps_per_epoch=config.train_steps,
         val_steps_per_epoch=config.eval_steps,
         checkpoint_dir=os.path.join(
-            config.output_dir, config.tasks.join("_"), "checkpoints"
+            config.output_dir, "_".join(config.tasks), "checkpoints"
         ),
     )
 
     # Evaluate the Mixture of Experts model
     logger.info("Evaluating Mixture of Experts model...")
-    eval_results = evaluate_model(moe_model, test_loader, criterion, device)
+    eval_results = evaluate_model(
+        moe_model, test_loader, criterion, config.eval_steps, device
+    )
     logger.info(f"Evaluation results: {eval_results}")
 
     # Save evaluation results
