@@ -109,7 +109,9 @@ def train_expert(config: ExpertConfig):
 
     # Evaluate the model
     logger.info(f"Evaluating model for {config.task}...")
-    eval_results = evaluate_model(model, test_loader, criterion, device)
+    eval_results = evaluate_model(
+        model, test_loader, criterion, config.eval_steps, device
+    )
 
     # Save evaluation results
     with open(os.path.join(task_dir, f"{config.task}_eval_results.json"), "w") as f:
