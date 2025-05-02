@@ -68,8 +68,8 @@ class RLHF:
         # Initialize reward model based on the current model
         self.reward_model = RewardModel(self.model).to(self.device)
 
-        # PPO hyperparameters (can be overridden)
-        self.ppo_params = vars(self.config.ppo_config)
+        # PPO hyperparameters
+        self.ppo_params = self.config.ppo_config
 
     def compute_kl_divergence(self, p, q):
         """Compute KL divergence between two distributions."""
@@ -342,7 +342,7 @@ class RLHF:
                         rollouts.append(rollout)
 
             # Run multiple PPO updates on the collected data
-            for _ in range(self.ppo_params["update_epochs"]):
+            for _ in range(self.ppo_params.update_epochs):
                 # Shuffle rollouts for each update
                 random.shuffle(rollouts)
 
@@ -419,8 +419,8 @@ class RLHF:
         surr2 = (
             torch.clamp(
                 ratio,
-                1.0 - self.ppo_params["clip_param"],
-                1.0 + self.ppo_params["clip_param"],
+                1.0 - self.ppo_params.clip_param,
+                1.0 + self.ppo_params.clip_param,
             )
             * advantages
         )
@@ -432,8 +432,8 @@ class RLHF:
         # Compute total loss
         loss = (
             policy_loss
-            + self.ppo_params["value_loss_coef"] * value_loss
-            - self.ppo_params["entropy_coef"] * entropy.mean()
+            + self.ppo_params.value_loss_coef * value_loss
+            - self.ppo_params.entropy_coef * entropy.mean()
             + self.config.kl_coef * kl_div
         )
 
@@ -442,7 +442,7 @@ class RLHF:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(
             list(self.model.parameters()) + list(value_head.parameters()),
-            self.ppo_params["max_grad_norm"],
+            self.ppo_params.max_grad_norm,
         )
         optimizer.step()
 
