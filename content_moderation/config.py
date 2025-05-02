@@ -20,7 +20,7 @@ class TrainingConfig:
     train_steps: int = 64
     eval_steps: int = 32
     learning_rate: float = 5e-5
-    num_epochs: int = 5
+    epochs: int = 5
     seed: int = 42
 
     # Misc
@@ -56,3 +56,32 @@ class MoEConfig(TrainingConfig, TokenizerConfig):
     top_k: int = 2  # Number of experts to use for each task
     embedding_dim: int = 256
     freeze_experts: bool = True  # Whether to freeze the experts during training
+
+
+@dataclass
+class PPOConfig:
+    """Configuration for Proximal Policy Optimization (PPO) training."""
+
+    clip_param: 0.2
+    value_loss_coef: 0.5
+    entropy_coef: 0.01
+    max_grad_norm: 0.5
+    update_epochs: 4
+
+
+@dataclass
+class RLHFConfig(TrainingConfig, TokenizerConfig):
+    """Configuration for training RLHF models."""
+
+    tasks: List[str] = field(default_factory=lambda: ["spam", "toxic"])
+    num_classes: int = 2
+    kl_coef: float = 0.1
+
+    # Reward Model
+    r_learning_rate: float = 2e-5
+    r_epochs: int = 3
+    r_batch_size: int = 32
+    r_val_split: float = 0.2
+
+    # PPO Hyperparameters
+    ppo_config: PPOConfig = PPOConfig()
