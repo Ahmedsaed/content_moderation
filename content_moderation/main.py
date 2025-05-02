@@ -384,7 +384,7 @@ def train_rlhf_ppo(config: RLHFConfig, model: nn.Module):
     # Save model configuration
     with open(os.path.join(config.output_dir, "rlhf_model_config.json"), "w") as f:
         json.dump(
-            vars(config),
+            config.to_dict(),
             f,
             indent=4,
         )

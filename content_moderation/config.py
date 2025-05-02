@@ -85,3 +85,48 @@ class RLHFConfig(TrainingConfig, TokenizerConfig):
 
     # PPO Hyperparameters
     ppo_config: PPOConfig = field(default_factory=PPOConfig)
+
+    def to_dict(self):
+        """Convert the configuration to a dictionary."""
+        return {
+            "tasks": self.tasks,
+            "num_classes": self.num_classes,
+            "kl_coef": self.kl_coef,
+            "r_learning_rate": self.r_learning_rate,
+            "r_epochs": self.r_epochs,
+            "r_batch_size": self.r_batch_size,
+            "r_val_split": self.r_val_split,
+            "ppo_config": {
+                "clip_param": self.ppo_config.clip_param,
+                "value_loss_coef": self.ppo_config.value_loss_coef,
+                "entropy_coef": self.ppo_config.entropy_coef,
+                "max_grad_norm": self.ppo_config.max_grad_norm,
+                "update_epochs": self.ppo_config.update_epochs,
+            },
+        }
+
+    def from_dict(self, config_dict):
+        """Load the configuration from a dictionary."""
+        self.tasks = config_dict.get("tasks", self.tasks)
+        self.num_classes = config_dict.get("num_classes", self.num_classes)
+        self.kl_coef = config_dict.get("kl_coef", self.kl_coef)
+        self.r_learning_rate = config_dict.get("r_learning_rate", self.r_learning_rate)
+        self.r_epochs = config_dict.get("r_epochs", self.r_epochs)
+        self.r_batch_size = config_dict.get("r_batch_size", self.r_batch_size)
+        self.r_val_split = config_dict.get("r_val_split", self.r_val_split)
+        ppo_config = config_dict.get("ppo_config", {})
+        self.ppo_config.clip_param = ppo_config.get(
+            "clip_param", self.ppo_config.clip_param
+        )
+        self.ppo_config.value_loss_coef = ppo_config.get(
+            "value_loss_coef", self.ppo_config.value_loss_coef
+        )
+        self.ppo_config.entropy_coef = ppo_config.get(
+            "entropy_coef", self.ppo_config.entropy_coef
+        )
+        self.ppo_config.max_grad_norm = ppo_config.get(
+            "max_grad_norm", self.ppo_config.max_grad_norm
+        )
+        self.ppo_config.update_epochs = ppo_config.get(
+            "update_epochs", self.ppo_config.update_epochs
+        )
