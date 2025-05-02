@@ -597,7 +597,13 @@ class RLHF:
         criterion = nn.CrossEntropyLoss()
 
         # Run evaluation
-        results = evaluate_model(self.model, test_loader, criterion, device=self.device)
+        results = evaluate_model(
+            self.model,
+            test_loader,
+            criterion,
+            self.config.eval_steps,
+            device=self.device,
+        )
 
         return results
 
