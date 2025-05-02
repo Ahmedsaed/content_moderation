@@ -84,4 +84,4 @@ class RLHFConfig(TrainingConfig, TokenizerConfig):
     r_val_split: float = 0.2
 
     # PPO Hyperparameters
-    ppo_config: PPOConfig = PPOConfig()
+    ppo_config: PPOConfig = field(default_factory=PPOConfig)
