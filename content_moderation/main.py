@@ -142,8 +142,8 @@ def train_expert(config: ExpertConfig):
 def get_combined_datasets(
     tasks: List[str],
     tokenizer: PreTrainedTokenizer,
-    streaming: bool = False,
-    max_length: int = 512,
+    streaming: bool,
+    max_length: int,
 ):
     """
     Creates and returns combined datasets for a list of tasks.
@@ -212,6 +212,8 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
     combined_train_datasets, combined_test_datasets = get_combined_datasets(
         tasks=config.tasks,
         tokenizer=tokenizer,
+        max_length=config.max_seq_length,
+        streaming=config.streaming,
     )
 
     train_loader = DataLoader(combined_train_datasets, batch_size=256)
