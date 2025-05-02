@@ -35,15 +35,14 @@ def load_spam_dataset(tokenizer, split="train", streaming=False, max_length=128)
         }
 
     ds = ds.map(label_fn)
+    ds = ds.shuffle(seed=42, buffer_size=10_000)
 
     ds.with_format(type="torch")
 
     return ModeratorDatasetHF(ds, tokenizer, "text", "label", max_length=max_length)
 
 
-def load_toxic_dataset(
-    tokenizer, split="train", streaming=False, max_length=128, slice_size=10000
-):
+def load_toxic_dataset(tokenizer, split="train", streaming=False, max_length=128):
     """
     Load the toxic comment classification dataset from Hugging Face.
 
@@ -52,7 +51,6 @@ def load_toxic_dataset(
         split: The dataset split to load (train, test, etc.).
         streaming: Whether to load the dataset in streaming mode.
         max_length: The maximum length for tokenization.
-        slice_size: The size of the dataset slice to load.
 
     Returns:
         ModeratorDatasetHF: A dataset object for moderation tasks.
@@ -77,7 +75,7 @@ def load_toxic_dataset(
         return {"comment_text": example["comment_text"], "label": int(any(toxic_flags))}
 
     ds = ds.map(label_fn)
-    ds = ds.take(slice_size) if streaming else ds
+    ds = ds.shuffle(seed=42, buffer_size=10_000)
 
     ds.with_format(type="torch")
 
@@ -86,9 +84,7 @@ def load_toxic_dataset(
     )
 
 
-def load_hate_speech_dataset(
-    tokenizer, split="train", streaming=False, max_length=128, slice_size=10000
-):
+def load_hate_speech_dataset(tokenizer, split="train", streaming=False, max_length=128):
     """
     Load the hate speech detection dataset from HateXplain on Hugging Face.
 
@@ -97,7 +93,6 @@ def load_hate_speech_dataset(
         split: The dataset split to load (train, validation, test).
         streaming: Whether to load the dataset in streaming mode.
         max_length: The maximum length for tokenization.
-        slice_size: The number of examples to take if streaming.
 
     Returns:
         ModeratorDatasetHF: A dataset object for moderation tasks.
@@ -126,7 +121,7 @@ def load_hate_speech_dataset(
         }
 
     ds = ds.map(label_fn)
-    ds = ds.take(slice_size) if streaming else ds
+    ds = ds.shuffle(seed=42, buffer_size=10_000)
 
     ds.with_format(type="torch")
 
