@@ -1,5 +1,5 @@
 from typing import List
-from content_moderation.config import ExpertConfig, MoEConfig
+from content_moderation.config import ExpertConfig, MoEConfig, RLHFConfig
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,11 +9,14 @@ import json
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 
+from content_moderation.datasets.datasets import PreferencePair
 from content_moderation.models import TransformerExpert, MixtureOfExperts
 from content_moderation.datasets.loaders import task_loaders
 from content_moderation.datasets import CombinedDataset
 from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
+from transformers import PreTrainedTokenizer
+from content_moderation.training.rlhf import RLHF, simulate_preference_data
 
 
 logger = get_logger(__name__)
@@ -93,7 +96,7 @@ def train_expert(config: ExpertConfig):
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
-        epochs=config.num_epochs,
+        epochs=config.epochs,
         device=device,
         checkpoint_dir=os.path.join(task_dir, "checkpoints"),
         train_steps_per_epoch=config.train_steps,
@@ -136,6 +139,57 @@ def train_expert(config: ExpertConfig):
     return model
 
 
+def get_combined_datasets(
+    tasks: List[str],
+    tokenizer: PreTrainedTokenizer,
+    streaming: bool = False,
+    max_length: int = 512,
+):
+    """
+    Creates and returns combined datasets for a list of tasks.
+
+    Args:
+        tasks: List of task names to load datasets for
+        tokenizer: Tokenizer to use for preprocessing
+        streaming: Whether to use streaming datasets
+        max_length: Maximum sequence length
+
+    Returns:
+        combined_train_dataset: Combined training dataset
+        combined_test_dataset: Combined testing dataset
+    """
+    train_datasets = []
+    test_datasets = []
+
+    for task in tasks:
+        if task in task_loaders.keys():
+            train_ds = task_loaders[task](
+                tokenizer,
+                split="train",
+                streaming=streaming,
+                max_length=max_length,
+            )
+            test_ds = task_loaders[task](
+                tokenizer,
+                split="test",
+                streaming=streaming,
+                max_length=max_length,
+            )
+        else:
+            raise ValueError(
+                f"Task {task} not supported. Supported tasks: {list(task_loaders.keys())}"
+            )
+
+        train_datasets.append(train_ds)
+        test_datasets.append(test_ds)
+
+    # Combine datasets
+    combined_train_dataset = CombinedDataset(train_datasets)
+    combined_test_dataset = CombinedDataset(test_datasets)
+
+    return combined_train_dataset, combined_test_dataset
+
+
 def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
     """Train a Mixture of Experts model."""
     logger.info("Training Mixture of Experts model")
@@ -154,34 +208,11 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     config.vocab_size = tokenizer.vocab_size
 
-    train_datasets = []
-    test_datasets = []
-
-    for task in config.tasks:
-        if task in task_loaders.keys():
-            train_ds = task_loaders[task](
-                tokenizer,
-                split="train",
-                streaming=config.streaming,
-                max_length=config.max_seq_length,
-            )
-            test_ds = task_loaders[task](
-                tokenizer,
-                split="test",
-                streaming=config.streaming,
-                max_length=config.max_seq_length,
-            )
-        else:
-            raise ValueError(
-                f"Task {task} not supported. Supported tasks: {list(task_loaders.keys())}"
-            )
-
-        train_datasets.append(train_ds)
-        test_datasets.append(test_ds)
-
-    # Combine datasets
-    combined_train_datasets = CombinedDataset(train_datasets)
-    combined_test_datasets = CombinedDataset(test_datasets)
+    # Load combined datasets
+    combined_train_datasets, combined_test_datasets = get_combined_datasets(
+        tasks=config.tasks,
+        tokenizer=tokenizer,
+    )
 
     train_loader = DataLoader(combined_train_datasets, batch_size=256)
     test_loader = DataLoader(combined_test_datasets, batch_size=256)
@@ -217,7 +248,7 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
-        epochs=config.num_epochs,
+        epochs=config.epochs,
         device=device,
         train_steps_per_epoch=config.train_steps,
         val_steps_per_epoch=config.eval_steps,
@@ -261,3 +292,98 @@ def train_moe(config: MoEConfig, experts: List[TransformerExpert]):
     logger.info(f"Saved Mixture of Experts model to {config.output_dir}")
 
     return moe_model
+
+
+def train_rlhf_ppo(config: RLHFConfig, model: nn.Module):
+    """
+    Demonstrate reinforcement learning from human feedback using PPO.
+
+    Args:
+        model_path: Path to the pretrained model
+        config_path: Path to the model configuration
+        output_dir: Directory to save updated model
+    """
+    # Create output directory
+    os.makedirs(config.output_dir, exist_ok=True)
+
+    # Set device
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
+    )
+    logger.info(f"Using device: {device}")
+
+    # Load tokenizer
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+
+    # Load combined datasets
+    combined_train_datasets, combined_test_datasets = get_combined_datasets(
+        tasks=config.tasks,
+        tokenizer=tokenizer,
+    )
+
+    # Initialize RLHF trainer
+    rlhf_trainer = RLHF(model, tokenizer, config, device)
+
+    # Step 1: Simulate preference data for reward model
+    texts, chosen_labels, rejected_labels = simulate_preference_data(
+        combined_test_datasets, tokenizer, sample_size=5000, noise_rate=0.05
+    )
+
+    preference_data = PreferencePair(
+        texts,
+        chosen_labels,
+        rejected_labels,
+        tokenizer,
+        config.max_seq_length,
+    )
+
+    # Step 2: Train the reward model
+    _ = rlhf_trainer.train_reward_model(
+        dataset=preference_data,
+    )
+
+    # Step 3: Train with PPO
+    ppo_model = rlhf_trainer.train_with_ppo(
+        train_ds=combined_train_datasets,
+        val_ds=combined_test_datasets,
+    )
+
+    # Test and save results
+    test_results = rlhf_trainer.test_on_original_task(combined_test_datasets)
+    logger.info(f"Test results after RLHF-PPO: {test_results}")
+
+    # Save the updated model
+    torch.save(
+        ppo_model.state_dict(),
+        os.path.join(config.output_dir, f"{"_".join(config.tasks)}_rlhf_ppo_model.pt"),
+    )
+
+    # Save training history
+    with open(
+        os.path.join(config.output_dir, "rlhf_ppo_training_history.json"), "w"
+    ) as f:
+        json.dump(
+            {
+                "ppo_loss": rlhf_trainer.history.get("ppo_loss", []),
+                "policy_loss": rlhf_trainer.history.get("policy_loss", []),
+                "value_loss": rlhf_trainer.history.get("value_loss", []),
+                "entropy": rlhf_trainer.history.get("entropy", []),
+                "kl_div": rlhf_trainer.history.get("kl_div", []),
+                "ppo_reward": rlhf_trainer.history.get("ppo_reward", []),
+                "final_test_accuracy": test_results["accuracy"],
+                "final_test_f1": test_results["f1"],
+            },
+            f,
+            indent=4,
+        )
+
+    # Save model configuration
+    with open(os.path.join(config.output_dir, "rlhf_model_config.json"), "w") as f:
+        json.dump(
+            vars(config),
+            f,
+            indent=4,
+        )
+
+    logger.info(f"RLHF-PPO updated model saved to {config.output_dir}")
+    return model, rlhf_trainer.history, test_results
