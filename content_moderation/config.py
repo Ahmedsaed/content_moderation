@@ -62,11 +62,11 @@ class MoEConfig(TrainingConfig, TokenizerConfig):
 class PPOConfig:
     """Configuration for Proximal Policy Optimization (PPO) training."""
 
-    clip_param: 0.2
-    value_loss_coef: 0.5
-    entropy_coef: 0.01
-    max_grad_norm: 0.5
-    update_epochs: 4
+    clip_param = 0.2
+    value_loss_coef = 0.5
+    entropy_coef = 0.01
+    max_grad_norm = 0.5
+    update_epochs = 4
 
 
 @dataclass
