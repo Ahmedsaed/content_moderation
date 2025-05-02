@@ -1,3 +1,4 @@
+from typing import List
 import torch
 from torch.utils.data import IterableDataset, Dataset
 import random
@@ -86,3 +87,95 @@ class CombinedDataset(IterableDataset):
             dataset = random.choice(self.datasets)
             for item in dataset:
                 yield item
+
+
+class FeedbackDataset(Dataset):
+    """Dataset for feedback data used to train RLHF models."""
+
+    def __init__(
+        self,
+        texts: List[str],
+        original_labels: List[int],
+        feedback_labels: List[int],
+        tokenizer,
+        max_length: int = 128,
+    ):
+        self.texts = texts
+        self.original_labels = original_labels
+        self.feedback_labels = feedback_labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        text = str(self.texts[idx])
+        original_label = self.original_labels[idx]
+        feedback_label = self.feedback_labels[idx]
+
+        # Tokenize the text
+        encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            padding="max_length",
+            return_tensors="pt",
+        )
+
+        # Extract token ids and attention mask
+        input_ids = encoding["input_ids"].squeeze()
+        attention_mask = encoding["attention_mask"].squeeze()
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "original_label": torch.tensor(original_label, dtype=torch.long),
+            "feedback_label": torch.tensor(feedback_label, dtype=torch.long),
+        }
+
+
+class PreferencePair(Dataset):
+    """Dataset for preference pairs used to train the reward model."""
+
+    def __init__(
+        self,
+        texts: List[str],
+        chosen_labels: List[int],
+        rejected_labels: List[int],
+        tokenizer,
+        max_length: int = 128,
+    ):
+        self.texts = texts
+        self.chosen_labels = chosen_labels
+        self.rejected_labels = rejected_labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        text = str(self.texts[idx])
+        chosen = self.chosen_labels[idx]
+        rejected = self.rejected_labels[idx]
+
+        # Tokenize the text
+        encoding = self.tokenizer(
+            text,
+            truncation=True,
+            max_length=self.max_length,
+            padding="max_length",
+            return_tensors="pt",
+        )
+
+        # Extract token ids and attention mask
+        input_ids = encoding["input_ids"].squeeze()
+        attention_mask = encoding["attention_mask"].squeeze()
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "chosen_label": torch.tensor(chosen, dtype=torch.long),
+            "rejected_label": torch.tensor(rejected, dtype=torch.long),
+        }
