@@ -321,6 +321,8 @@ def train_rlhf_ppo(config: RLHFConfig, model: nn.Module):
     combined_train_datasets, combined_test_datasets = get_combined_datasets(
         tasks=config.tasks,
         tokenizer=tokenizer,
+        max_length=config.max_seq_length,
+        streaming=config.streaming,
     )
 
     # Initialize RLHF trainer
