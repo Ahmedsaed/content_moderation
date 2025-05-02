@@ -1,5 +1,5 @@
 import logging
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 from content_moderation.datasets import ModeratorDatasetHF
 
 # Set up logging
@@ -42,25 +42,42 @@ def load_spam_dataset(tokenizer, split="train", streaming=False, max_length=128)
     return ModeratorDatasetHF(ds, tokenizer, "text", "label", max_length=max_length)
 
 
-def load_toxic_dataset(tokenizer, split="train", streaming=False, max_length=128):
+def load_toxic_dataset(
+    tokenizer, split="train", streaming=False, max_length=128, test_size=0.3
+):
     """
     Load the toxic comment classification dataset from Hugging Face.
+    Combines train and test splits to address class imbalance, then creates new splits.
 
     Args:
         tokenizer: The tokenizer to use for text processing.
-        split: The dataset split to load (train, test, etc.).
+        split: The dataset split to load ("train" or "test").
         streaming: Whether to load the dataset in streaming mode.
         max_length: The maximum length for tokenization.
+        test_size: Fraction of data to use for test set (default: 0.3).
 
     Returns:
         ModeratorDatasetHF: A dataset object for moderation tasks.
     """
-    logger.info(f"Loading {split} split of the toxic comment classification dataset...")
-    ds = load_dataset(
-        "thesofakillers/jigsaw-toxic-comment-classification-challenge",
-        split=split,
-        streaming=streaming,
+    logger.info(
+        "Loading and combining both splits of the toxic comment classification dataset bacause of class imbalance..."
     )
+
+    # Load both train and test datasets
+    train_ds = load_dataset(
+        "thesofakillers/jigsaw-toxic-comment-classification-challenge",
+        split="train",
+        streaming=False,  # Need full dataset for combining
+    )
+
+    test_ds = load_dataset(
+        "thesofakillers/jigsaw-toxic-comment-classification-challenge",
+        split="test",
+        streaming=False,
+    )
+
+    # Combine datasets
+    combined_ds = concatenate_datasets([train_ds, test_ds])
 
     def label_fn(example):
         # Combine all toxicity flags into one binary label
@@ -74,10 +91,30 @@ def load_toxic_dataset(tokenizer, split="train", streaming=False, max_length=128
         ]
         return {"comment_text": example["comment_text"], "label": int(any(toxic_flags))}
 
-    ds = ds.map(label_fn)
-    ds = ds.shuffle(seed=42, buffer_size=10_000)
+    combined_ds = combined_ds.map(label_fn)
 
+    # Create new train/test split with proper shuffle
+    split_ds = combined_ds.train_test_split(test_size=test_size, seed=42)
+
+    if split == "train":
+        ds = split_ds["train"]
+    elif split == "test":
+        ds = split_ds["test"]
+    else:
+        raise ValueError("split must be 'train' or 'test'")
+
+    # Apply additional shuffle for good measure
+    ds = ds.shuffle(seed=42)
     ds.with_format(type="torch")
+
+    # Log class distribution in the selected split
+    label_counts = ds.map(lambda x: {"ones": x["label"]}, batched=True, batch_size=1000)
+    positive_examples = sum(label_counts["ones"])
+    total_examples = len(label_counts["ones"])
+    logger.info(
+        f"Class distribution in {split} split: {positive_examples}/{total_examples} "
+        f"({positive_examples/total_examples*100:.2f}% positive examples)"
+    )
 
     return ModeratorDatasetHF(
         ds, tokenizer, "comment_text", "label", max_length=max_length
