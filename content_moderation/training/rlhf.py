@@ -249,7 +249,7 @@ class RLHF:
         Returns:
             Trained model
         """
-        logger.info(f"Training with PPO on {" ".join(self.config.tasks)} tasks")
+        logger.info(f"Training with PPO on {' '.join(self.config.tasks)} tasks")
 
         # Create a reference (old) model for KL divergence and value estimation
         ref_model = copy.deepcopy(self.model)

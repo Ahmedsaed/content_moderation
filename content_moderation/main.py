@@ -355,7 +355,7 @@ def train_rlhf_ppo(config: RLHFConfig, model: nn.Module):
     # Save the updated model
     torch.save(
         ppo_model.state_dict(),
-        os.path.join(config.output_dir, f"{"_".join(config.tasks)}_rlhf_ppo_model.pt"),
+        os.path.join(config.output_dir, f"{'_'.join(config.tasks)}_rlhf_ppo_model.pt"),
     )
 
     # Save training history
