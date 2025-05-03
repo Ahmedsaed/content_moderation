@@ -35,7 +35,10 @@ def load_spam_dataset(tokenizer, split="train", streaming=False, max_length=128)
         }
 
     ds = ds.map(label_fn)
-    ds = ds.shuffle(seed=42, buffer_size=10_000)
+    if streaming:
+        ds = ds.shuffle(seed=42, buffer_size=10_000)
+    else:
+        ds = ds.shuffle(seed=42)
 
     ds.with_format(type="torch")
 

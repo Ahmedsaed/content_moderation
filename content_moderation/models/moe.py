@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import List, Optional
+from content_moderation.config import MoEConfig
 from content_moderation.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -149,3 +150,38 @@ class MixtureOfExperts(nn.Module):
                 outputs[i] += k_routing_weights[i] * expert_output[0]
 
         return outputs
+
+
+def load_pretrained_moe(model_path: str, config: MoEConfig, experts, device):
+    """
+    Load a pretrained Mixture of Experts (MoE) model.
+
+    Args:
+        model_path (str): Path to the pretrained model.
+        config (MoEConfig): Configuration for the model.
+        device: Device to load the model on.
+
+    Returns:
+        MixtureOfExperts: The loaded MoE model.
+    """
+    # Load the pretrained model
+    model = MixtureOfExperts(
+        experts=experts,
+        input_dim=config.input_dim,
+        embedding_dim=config.embedding_dim,
+        vocab_size=config.vocab_size,
+        num_classes=config.num_classes,
+        top_k=config.top_k,
+        expert_output_dim=config.expert_output_dim,
+        freeze_experts=config.freeze_experts,
+    )
+
+    # Load the state dict
+    state_dict = torch.load(model_path, map_location=device)
+
+    # Update the model's state dict
+    model.load_state_dict(state_dict, strict=False)
+
+    model.to(device)
+
+    return model
