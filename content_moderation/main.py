@@ -1,5 +1,10 @@
 from typing import List
-from content_moderation.config import ExpertConfig, MoEConfig, RLHFConfig
+from content_moderation.config import (
+    AdversarialConfig,
+    ExpertConfig,
+    MoEConfig,
+    RLHFConfig,
+)
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,6 +22,10 @@ from content_moderation.training import train_model, evaluate_model
 from content_moderation.utils.logging import get_logger
 from transformers import PreTrainedTokenizer
 from content_moderation.training.rlhf import RLHF, simulate_preference_data
+from content_moderation.training.adversarial import (
+    AdversarialModerationTraining,
+    iterative_adversarial_training,
+)
 
 
 logger = get_logger(__name__)
@@ -391,3 +400,168 @@ def train_rlhf_ppo(config: RLHFConfig, model: nn.Module):
 
     logger.info(f"RLHF-PPO updated model saved to {config.output_dir}")
     return model, rlhf_trainer.history, test_results
+
+
+def train_adversarial(config: AdversarialConfig, moe_model: MixtureOfExperts):
+    """
+    Train an adversarial network for content moderation with iterative training
+    to improve moderator robustness.
+
+    Args:
+        config: Configuration for training
+        moe_model: Pretrained Mixture of Experts model
+
+    Returns:
+        tuple: (AdversarialModeration, MixtureOfExperts) - Final system and improved moderator
+    """
+    logger.info(
+        "Training robust content moderation system using adversarial techniques"
+    )
+
+    # Set device
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() and not config.no_cuda else "cpu"
+    )
+    logger.info(f"Using device: {device}")
+
+    # Set random seeds for reproducibility
+    torch.manual_seed(config.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(config.seed)
+
+    # Load tokenizer
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+
+    # Create output directory
+    adv_dir = os.path.join(config.output_dir, "adversarial")
+    os.makedirs(adv_dir, exist_ok=True)
+
+    # Load datasets
+    combined_train_datasets, combined_test_datasets = get_combined_datasets(
+        tasks=config.tasks,
+        tokenizer=tokenizer,
+        max_length=config.max_seq_length,
+        streaming=config.streaming,
+    )
+
+    # Perform iterative adversarial training
+    adv_system, improved_moderator = iterative_adversarial_training(
+        tokenizer=tokenizer,
+        moderator=moe_model,
+        train_ds=combined_train_datasets,
+        config=config,
+        device=device,
+    )
+
+    # Extract test examples for final evaluation
+    test_texts = []
+    test_labels = []
+
+    # Sample from test dataset
+    test_loader = torch.utils.data.DataLoader(
+        combined_test_datasets, batch_size=config.batch_size, shuffle=True
+    )
+
+    for batch in test_loader:
+        batch_texts = tokenizer.batch_decode(
+            batch["input_ids"], skip_special_tokens=True
+        )
+        batch_labels = batch["label"].tolist()
+
+        test_texts.extend(batch_texts)
+        test_labels.extend(batch_labels)
+
+        if len(test_texts) >= 200:  # Sample 200 examples for evaluation
+            break
+
+    # Final evaluation of original moderator vs improved moderator
+    # Create a system with the original moderator for comparison
+    original_system = AdversarialModerationTraining(
+        tokenizer=tokenizer,
+        moderator=moe_model,  # Original model
+        device=device,
+        max_seq_length=config.max_seq_length,
+    )
+    original_system.evader = adv_system.evader  # Use the same evader
+
+    # Generate adversarial examples from harmful test examples
+    harmful_indices = [i for i, label in enumerate(test_labels) if label == 1]
+    harmful_texts = [test_texts[i] for i in harmful_indices]
+    harmful_labels = [1] * len(harmful_texts)
+
+    modified_texts = adv_system.generate_adversarial_examples(harmful_texts)
+
+    # Evaluate original moderator
+    original_evasion_rate = original_system.evaluate_evasion(
+        modified_texts, harmful_labels
+    )
+
+    # Evaluate improved moderator
+    improved_evasion_rate = adv_system.evaluate_evasion(modified_texts, harmful_labels)
+
+    logger.info("\n=== Final Evaluation ===")
+    logger.info(f"Original moderator evasion rate: {original_evasion_rate:.2%}")
+    logger.info(f"Improved moderator evasion rate: {improved_evasion_rate:.2%}")
+    logger.info(
+        f"Robustness improvement: {original_evasion_rate - improved_evasion_rate:.2%}"
+    )
+
+    # Collect example comparisons
+    examples = []
+    for i, (orig_text, mod_text) in enumerate(zip(harmful_texts, modified_texts)):
+        if i >= config.eval_examples:
+            break
+
+        # Check predictions with original moderator
+        orig_mod_pred_orig = original_system._predict_with_moderator(orig_text)
+        mod_text_pred_orig = original_system._predict_with_moderator(mod_text)
+
+        # Check predictions with improved moderator
+        orig_mod_pred_improved = adv_system._predict_with_moderator(orig_text)
+        mod_text_pred_improved = adv_system._predict_with_moderator(mod_text)
+
+        examples.append(
+            {
+                "original_text": orig_text,
+                "modified_text": mod_text,
+                "original_moderator": {
+                    "original_text_prediction": int(orig_mod_pred_orig),
+                    "modified_text_prediction": int(mod_text_pred_orig),
+                    "evaded": orig_mod_pred_orig == 1 and mod_text_pred_orig == 0,
+                },
+                "improved_moderator": {
+                    "original_text_prediction": int(orig_mod_pred_improved),
+                    "modified_text_prediction": int(mod_text_pred_improved),
+                    "evaded": orig_mod_pred_improved == 1
+                    and mod_text_pred_improved == 0,
+                },
+            }
+        )
+
+    # Save evaluation results
+    with open(os.path.join(adv_dir, "adversarial_eval_results.json"), "w") as f:
+        json.dump(
+            {
+                "original_moderator_evasion_rate": original_evasion_rate,
+                "improved_moderator_evasion_rate": improved_evasion_rate,
+                "robustness_improvement": original_evasion_rate - improved_evasion_rate,
+                "examples": examples,
+            },
+            f,
+            indent=4,
+        )
+
+    # Save the token modifier model
+    torch.save(
+        adv_system.evader.token_modifier.state_dict(),
+        os.path.join(adv_dir, "token_modifier.pt"),
+    )
+
+    # Save the improved moderator model
+    torch.save(
+        improved_moderator.state_dict(), os.path.join(adv_dir, "improved_moderator.pt")
+    )
+
+    logger.info(f"Saved adversarial system and improved moderator to {adv_dir}")
+
+    return adv_system, improved_moderator

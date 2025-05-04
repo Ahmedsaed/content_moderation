@@ -130,3 +130,16 @@ class RLHFConfig(TrainingConfig, TokenizerConfig):
         self.ppo_config.update_epochs = ppo_config.get(
             "update_epochs", self.ppo_config.update_epochs
         )
+
+
+@dataclass
+class AdversarialConfig(MoEConfig):
+    """Configuration for adversarial training"""
+
+    adversarial_epochs: int = 5  # Evader training epochs per iteration
+    robust_training_epochs: int = 3  # Moderator training epochs per iteration
+    adversarial_iterations: int = 3  # Number of adversarial training iterations
+    adversarial_sample_size: int = 5000
+    modification_threshold: float = 0.5
+    bad_words_file: Optional[str] = None
+    eval_examples: int = 10
