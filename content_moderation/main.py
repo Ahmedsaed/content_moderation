@@ -459,7 +459,7 @@ def train_adversarial(config: AdversarialConfig, moe_model: MixtureOfExperts):
 
     # Sample from test dataset
     test_loader = torch.utils.data.DataLoader(
-        combined_test_datasets, batch_size=config.batch_size, shuffle=True
+        combined_test_datasets, batch_size=config.batch_size
     )
 
     for batch in test_loader:

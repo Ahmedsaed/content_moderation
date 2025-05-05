@@ -1,4 +1,4 @@
-from random import random
+import random
 from typing import List, Optional, Union
 import torch
 import torch.nn.functional as F
@@ -142,6 +142,7 @@ class AdversarialModerationTraining:
         """
         # Put evader in training mode
         self.evader.token_modifier.train()
+        self.moderator.eval()
 
         # Create optimizer
         optimizer = torch.optim.AdamW(
@@ -271,10 +272,14 @@ def train_moderator_against_evasion(
 
     # Put moderator in training mode
     adv_system.moderator.train()
+    adv_system.evader.token_modifier.eval()  # Set evader to evaluation mode
 
     # Freeze the evader during moderator training
     for param in adv_system.evader.token_modifier.parameters():
         param.requires_grad = False
+
+    for param in adv_system.moderator.parameters():
+        param.requires_grad = True
 
     # Create optimizer for moderator
     optimizer = torch.optim.AdamW(
@@ -418,9 +423,7 @@ def iterative_adversarial_training(
     sample_size = min(config.adversarial_sample_size, 5000)
 
     try:
-        dataloader = torch.utils.data.DataLoader(
-            train_ds, batch_size=config.batch_size, shuffle=True
-        )
+        dataloader = torch.utils.data.DataLoader(train_ds, batch_size=config.batch_size)
 
         for batch in tqdm(dataloader, desc="Extracting texts for adversarial training"):
             batch_texts = tokenizer.batch_decode(

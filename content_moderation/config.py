@@ -141,5 +141,4 @@ class AdversarialConfig(MoEConfig):
     adversarial_iterations: int = 3  # Number of adversarial training iterations
     adversarial_sample_size: int = 5000
     modification_threshold: float = 0.5
-    bad_words_file: Optional[str] = None
     eval_examples: int = 10
